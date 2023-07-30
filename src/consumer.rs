@@ -52,9 +52,9 @@ impl HingeConsumer for GreedyNode {
 }
 
 #[derive(Debug, Clone)]
-pub struct AlwaysTrue;
+pub struct AlwaysTrueNode;
 
-impl HingeConsumer for AlwaysTrue {
+impl HingeConsumer for AlwaysTrueNode {
   fn consume(&self, _: &mut Box<dyn Iterator<Item = Token>>) -> Result<HingeOutput> {
     Ok(HingeOutput::True)
   }
@@ -96,12 +96,24 @@ pub struct CollectionNodeEntry {
 }
 
 impl CollectionNodeEntry {
-  fn new(consumer: impl HingeConsumer + 'static) -> Self {
+  pub fn new(consumer: impl HingeConsumer + 'static) -> Self {
     CollectionNodeEntry { name: None, consumer: Rc::new(Box::new(consumer)), require: false }
   }
 
-  fn new_named(name: String, consumer: impl HingeConsumer + 'static) -> Self {
+  pub fn new_named(name: String, consumer: impl HingeConsumer + 'static) -> Self {
     CollectionNodeEntry { name: Some(name), consumer: Rc::new(Box::new(consumer)), require: false }
+  }
+
+  pub fn require(&mut self, require: bool) {
+    self.require = require
+  }
+
+  pub fn rename(&mut self, name: impl AsRef<str>) {
+    self.name = Some(name.as_ref().to_string())
+  }
+
+  pub fn remove_name(&mut self) {
+    self.name = None
   }
 }
 
@@ -125,11 +137,15 @@ impl CollectionNode {
     self
   }
 
-  pub fn require_last(mut self) -> Self {
+  pub fn update_last(mut self, operation: impl FnOnce(&mut CollectionNodeEntry)) -> Self {
     if let Some(n) = self.items.last_mut() {
-      n.require = true
+      operation(n);
     }
     self
+  }
+
+  pub fn require_last(self) -> Self {
+    self.update_last(|x| x.require(true))
   }
 }
 
