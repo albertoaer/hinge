@@ -1,6 +1,6 @@
 use std::{rc::Rc, fmt::Debug};
 
-use crate::{HingeOutput, Result, OutputCollectionBuilder};
+use crate::{HingeOutput, Result, HingeCollectionBuilder};
 
 pub type Token = String;
 
@@ -41,7 +41,7 @@ impl HingeConsumer for GreedyNode {
         }
       };
       return Ok(
-        HingeOutput::Collection { named: None, tail: Some(result) }
+        HingeOutput::List(result)
       )
     }
     match iterator.next() {
@@ -151,7 +151,7 @@ impl CollectionNode {
 
 impl HingeConsumer for CollectionNode {
   fn consume(&self, iterator: &mut Box<dyn Iterator<Item = Token>>) -> Result<HingeOutput> {
-    let mut builder = OutputCollectionBuilder::new();
+    let mut builder = HingeCollectionBuilder::new();
     loop {
       let results: Result<Vec<_>> = self.items.iter().map(|item| item.consumer.consume(iterator).map(|x| (item, x))).collect();
       let non_empty: Vec<_> = results?.into_iter().filter(|(_, x)| !x.is_empty()).collect();
