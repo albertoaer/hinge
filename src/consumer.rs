@@ -1,4 +1,4 @@
-use std::{rc::Rc, fmt::Debug};
+use std::{rc::Rc, fmt::Debug, iter, mem::swap};
 
 use crate::{HingeOutput, Result, HingeCollectionBuilder};
 
@@ -82,6 +82,9 @@ impl HingeConsumer for NamedNode {
       None => return Ok(HingeOutput::Empty),
     };
     if !self.names.iter().any(|x| *x == first_token) {
+      let mut tmp: Box<dyn Iterator<Item = Token>> = Box::new(iter::empty());
+      swap(&mut tmp, iterator);
+      *iterator = Box::new(iter::once(first_token).chain(tmp));
       return Ok(HingeOutput::Empty)
     }
     return self.wrapped.consume(iterator)
