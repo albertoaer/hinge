@@ -1,4 +1,4 @@
-use crate::{HingeConsumer, Token, Result, HingeOutput, CollectionNode, NamedNode, AlwaysTrueNode, GreedyNode};
+use crate::{HingeConsumer, Token, Result, HingeOutput, CollectionNode, NamedNode, GreedyNode, AlwaysTrueNode};
 
 #[derive(Debug)]
 pub struct Hinge(Box<dyn HingeConsumer>);
@@ -28,11 +28,50 @@ impl<T : HingeConsumer + 'static> From<T> for Hinge {
 }
 
 #[derive(Debug, Clone)]
-pub enum FlagType {
-  Bool,
-  Item,
-  List(usize),
-  RemainingItems
+pub enum FlagName {
+  Short(char),
+  Long(String),
+  Both(char, String)
+}
+
+impl FlagName {
+  fn collect(&self) -> Vec<String> {
+    match self {
+      FlagName::Short(s) => vec![format!("-{}", s)],
+      FlagName::Long(l) => vec![format!("--{}", l)],
+      FlagName::Both(s, l) => vec![format!("-{}", s), format!("--{}", l)],
+    }
+  }
+}
+
+impl From<char> for FlagName {
+  fn from(value: char) -> Self {
+    Self::Short(value)
+  }
+}
+
+impl From<&str> for FlagName {
+  fn from(value: &str) -> Self {
+    Self::Long(value.to_string())
+  }
+}
+
+impl From<String> for FlagName {
+  fn from(value: String) -> Self {
+    Self::Long(value)
+  }
+}
+
+impl From<(char, &str)> for FlagName {
+  fn from(value: (char, &str)) -> Self {
+    Self::Both(value.0, value.1.to_string())
+  }
+}
+
+impl From<(char, String)> for FlagName {
+  fn from(value: (char, String)) -> Self {
+    Self::Both(value.0, value.1)
+  }
 }
 
 #[derive(Debug, Clone)]
@@ -43,27 +82,46 @@ impl HingeBuilder {
     HingeBuilder(CollectionNode::new())
   }
 
-  pub fn flag(
+  pub fn bool_flag(
     mut self,
-    name: impl AsRef<str>,
-    long: Option<impl AsRef<str>>,
-    short: Option<char>,
-    flag_config: FlagType
+    id: impl AsRef<str>,
+    name: impl Into<FlagName>
   ) -> Self {
-    let name_options = [long.map(|x| format!("--{}", x.as_ref())), short.map(|x| format!("-{}", x))];
-    let names = name_options.iter().filter_map(|x| x.as_ref()).collect();
-    let node: NamedNode = match flag_config {
-      FlagType::Bool => NamedNode::new(names, AlwaysTrueNode),
-      FlagType::Item => NamedNode::new(names, GreedyNode::new()),
-      FlagType::List(count) => NamedNode::new(names, GreedyNode::new().accept_many(Some(count))),
-      FlagType::RemainingItems => NamedNode::new(names, GreedyNode::new().accept_many(None)),
-    };
-    self.0 = self.0.put(name, node);
+    let names: FlagName = name.into();
+    self.0 = self.0.put(id, NamedNode::new(names.collect(), AlwaysTrueNode));
+    self
+  }
+  
+  pub fn item_flag(
+    mut self,
+    id: impl AsRef<str>,
+    name: impl Into<FlagName>,
+    required: bool
+  ) -> Self {
+    let names: FlagName = name.into();
+    self.0 = self.0.put(id, NamedNode::new(names.collect(), GreedyNode::new()));
+    if required {
+      self.0 = self.0.require_last()
+    }
     self
   }
 
-  pub fn require(mut self) -> Self {
-    self.0 = self.0.require_last();
+  pub fn list_flag(
+    mut self,
+    id: impl AsRef<str>,
+    name: impl Into<FlagName>,
+    count: Option<usize>,
+    required: bool
+  ) -> Self {
+    let names: FlagName = name.into();
+    let node: NamedNode = NamedNode::new(names.collect(), match count {
+      Some(count) => GreedyNode::new().accept_many(Some(count)),
+      None => GreedyNode::new().accept_many(None),
+    });
+    self.0 = self.0.put(id, node);
+    if required {
+      self.0 = self.0.require_last();
+    }
     self
   }
 
