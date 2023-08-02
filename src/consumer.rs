@@ -9,54 +9,51 @@ pub trait HingeConsumer: Debug {
 }
 
 #[derive(Debug, Clone)]
-pub struct GreedyNode {
-  many: bool,
-  count: Option<usize>
-}
-
-impl GreedyNode {
-  pub fn new() -> Self {
-    GreedyNode { many: false, count: None }
-  }
-
-  pub fn accept_many(mut self, count: Option<usize>) -> Self {
-    self.many = true;
-    self.count = count;
-    self
-  }
-}
-
-impl HingeConsumer for GreedyNode {
-  fn consume(&self, iterator: &mut Box<dyn Iterator<Item = Token>>) -> Result<HingeOutput> {
-    if self.many {
-      let result: Vec<_> = {
-        if let Some(count) = self.count {
-          let collected: Vec<_> = iterator.take(count).map(|x| HingeOutput::Value(x)).collect();
-          if collected.len() < count {
-            return Err("not enough elements".to_string().into());
-          }
-          collected
-        } else {
-          iterator.map(|x| HingeOutput::Value(x)).collect()
-        }
-      };
-      return Ok(
-        HingeOutput::List(result)
-      )
-    }
-    match iterator.next() {
-      Some(val) => Ok(HingeOutput::Value(val)),
-      None => Ok(HingeOutput::Empty)
-    }
-  }
-}
-
-#[derive(Debug, Clone)]
 pub struct AlwaysTrueNode;
 
 impl HingeConsumer for AlwaysTrueNode {
   fn consume(&self, _: &mut Box<dyn Iterator<Item = Token>>) -> Result<HingeOutput> {
     Ok(HingeOutput::True)
+  }
+}
+
+#[derive(Debug, Clone)]
+pub struct OneTokenNode;
+
+impl HingeConsumer for OneTokenNode {
+  fn consume(&self, iterator: &mut Box<dyn Iterator<Item = Token>>) -> Result<HingeOutput> {
+    match iterator.next() {
+      Some(val) => Ok(HingeOutput::Value(val)),
+      None => Err("expecting a value".to_string().into())
+    }
+  }
+}
+
+#[derive(Debug, Clone)]
+pub struct ListNode {
+  count: Option<usize>
+}
+
+impl ListNode {
+  pub fn new(count: Option<usize>) -> Self {
+    ListNode { count }
+  }
+}
+
+impl HingeConsumer for ListNode {
+  fn consume(&self, iterator: &mut Box<dyn Iterator<Item = Token>>) -> Result<HingeOutput> {
+    let result: Vec<_> = {
+      if let Some(count) = self.count {
+        let collected: Vec<_> = iterator.take(count).map(|x| HingeOutput::Value(x)).collect();
+        if collected.len() < count {
+          return Err("not enough elements".to_string().into());
+        }
+        collected
+      } else {
+        iterator.map(|x| HingeOutput::Value(x)).collect()
+      }
+    };
+    return Ok(HingeOutput::List(result))
   }
 }
 

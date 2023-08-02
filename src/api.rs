@@ -1,4 +1,4 @@
-use crate::{HingeConsumer, Token, Result, HingeOutput, CollectionNode, NamedNode, GreedyNode, AlwaysTrueNode};
+use crate::{HingeConsumer, Token, Result, HingeOutput, CollectionNode, NamedNode, AlwaysTrueNode, ListNode, OneTokenNode};
 
 #[derive(Debug)]
 pub struct Hinge(Box<dyn HingeConsumer>);
@@ -99,7 +99,7 @@ impl HingeBuilder {
     required: bool
   ) -> Self {
     let names: FlagName = name.into();
-    self.0 = self.0.put(id, NamedNode::new(names.collect(), GreedyNode::new()));
+    self.0 = self.0.put(id, NamedNode::new(names.collect(), OneTokenNode));
     if required {
       self.0 = self.0.require_last()
     }
@@ -114,11 +114,7 @@ impl HingeBuilder {
     required: bool
   ) -> Self {
     let names: FlagName = name.into();
-    let node: NamedNode = NamedNode::new(names.collect(), match count {
-      Some(count) => GreedyNode::new().accept_many(Some(count)),
-      None => GreedyNode::new().accept_many(None),
-    });
-    self.0 = self.0.put(id, node);
+    self.0 = self.0.put(id, NamedNode::new(names.collect(), ListNode::new(count)));
     if required {
       self.0 = self.0.require_last();
     }
@@ -126,7 +122,7 @@ impl HingeBuilder {
   }
 
   pub fn catch_tail(mut self, name: impl AsRef<str>) -> Self {
-    self.0 = self.0.put(name, NamedNode::new(vec!["--"], GreedyNode::new().accept_many(None)));
+    self.0 = self.0.put(name, NamedNode::new(vec!["--"], ListNode::new(None)));
     self
   }
 
