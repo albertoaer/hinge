@@ -1,4 +1,4 @@
-use std::{rc::Rc, fmt::Debug, iter, mem::swap};
+use std::{rc::Rc, fmt::Debug, iter, mem::swap, collections};
 
 use crate::{HingeOutput, Result, HingeCollectionBuilder};
 
@@ -171,6 +171,71 @@ impl HingeConsumer for CollectionNode {
         (false, true) => return Err(format!("Expecting item with name: {}", name).into()),
         (false, false) => builder.add_item(name, HingeOutput::Empty),
         _ => (),
+      }
+    }
+    Ok(builder.collect())
+  }
+}
+
+#[derive(Debug, Clone)]
+pub struct ClassificationNode {
+  entries: Vec<(String, Rc<Box<dyn HingeConsumer>>)>
+}
+
+impl ClassificationNode {
+  pub fn new() -> Self {
+    ClassificationNode { entries: Vec::new() }
+  }
+
+  pub fn put(&mut self, id: impl AsRef<str>, value: impl HingeConsumer + 'static) {
+    self.entries.push((id.as_ref().to_string(), Rc::new(Box::new(value))));
+  }
+}
+
+impl HingeConsumer for ClassificationNode {
+  fn consume(&self, iterator: &mut Box<dyn Iterator<Item = Token>>) -> Result<HingeOutput> {
+    let mut builder = HingeCollectionBuilder::new();
+    loop {
+      let results: Result<Vec<_>> = self.entries.iter()
+        .filter(|item| !builder.has_item(&item.0))
+        .map(|item| item.1.consume(iterator).map(|x| (item, x)))
+        .collect();
+      let non_empty: Vec<_> = results?.into_iter().filter(|(_, x)| !x.is_empty()).collect();
+      if non_empty.is_empty() {
+        break;
+      }
+      for (item, result) in non_empty {
+        builder.add_item(&item.0, result);
+      }
+    }
+    for item in &self.entries {
+      if !builder.has_item(&item.0) {
+        builder.add_item(&item.0, HingeOutput::Empty);
+      }
+    }
+    Ok(builder.collect())
+  }
+}
+
+#[derive(Debug, Clone)]
+pub struct MandatoryItemsNode {
+  child: Rc<Box<dyn HingeConsumer>>,
+  names: Vec<String>
+}
+
+impl MandatoryItemsNode {
+  pub fn new(child: impl HingeConsumer + 'static, names: Vec<String>) -> Self {
+    MandatoryItemsNode { child: Rc::new(Box::new(child)), names }
+  }
+}
+
+impl HingeConsumer for MandatoryItemsNode {
+  fn consume(&self, iterator: &mut Box<dyn Iterator<Item = Token>>) -> Result<HingeOutput> {
+    let builder: HingeCollectionBuilder = self.child.consume(iterator)?.try_into()?;
+    for name in &self.names {
+      let map: &collections::HashMap<_, _> = builder.as_ref();
+      if !map.contains_key(name) || map.get(name).unwrap().is_empty() {
+        return Err(format!("Expecting item with name: {}", name).into());
       }
     }
     Ok(builder.collect())

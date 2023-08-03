@@ -1,6 +1,6 @@
 use std::collections;
 
-use crate::error::Result;
+use crate::{error::Result, HingeError};
 
 pub type Atom = String;
 
@@ -70,6 +70,10 @@ impl HingeCollectionBuilder {
     HingeCollectionBuilder { list: Vec::new(), map: collections::HashMap::new() }
   }
 
+  pub fn new_from(list: Vec<HingeOutput>, map: collections::HashMap<String, HingeOutput>) -> Self {
+    HingeCollectionBuilder { list, map }
+  }
+
   pub fn add_value(&mut self, value: HingeOutput) {
     self.list.push(value);
   }
@@ -90,5 +94,30 @@ impl HingeCollectionBuilder {
     } else {
       HingeOutput::MapList(self.map, self.list)
     }
+  }
+}
+
+impl AsRef<Vec<HingeOutput>> for HingeCollectionBuilder {
+  fn as_ref(&self) -> &Vec<HingeOutput> {
+    &self.list
+  }
+}
+
+impl AsRef<collections::HashMap<String, HingeOutput>> for HingeCollectionBuilder {
+  fn as_ref(&self) -> &collections::HashMap<String, HingeOutput> {
+    &self.map
+  }
+}
+
+impl TryInto<HingeCollectionBuilder> for HingeOutput {
+  type Error = HingeError;
+
+  fn try_into(self) -> std::result::Result<HingeCollectionBuilder, Self::Error> {
+    Ok(match self {
+      HingeOutput::Map(map) => HingeCollectionBuilder::new_from(Vec::new(), map),
+      HingeOutput::List(list) => HingeCollectionBuilder::new_from(list, collections::HashMap::new()),
+      HingeOutput::MapList(map, list) => HingeCollectionBuilder::new_from(list, map),
+      _ => return Err("result is not a collection".to_string().into())
+    })
   }
 }

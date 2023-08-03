@@ -1,4 +1,4 @@
-use crate::{HingeConsumer, Token, Result, HingeOutput, CollectionNode, NamedNode, AlwaysTrueNode, ListNode, OneTokenNode};
+use crate::{HingeConsumer, Token, Result, HingeOutput, NamedNode, AlwaysTrueNode, ListNode, OneTokenNode, ClassificationNode, MandatoryItemsNode};
 
 #[derive(Debug)]
 pub struct Hinge(Box<dyn HingeConsumer>);
@@ -75,11 +75,14 @@ impl From<(char, String)> for FlagName {
 }
 
 #[derive(Debug, Clone)]
-pub struct HingeBuilder(CollectionNode);
+pub struct HingeBuilder {
+  node: ClassificationNode,
+  mandatory: Vec<String>
+}
 
 impl HingeBuilder {
   pub fn new() -> Self {
-    HingeBuilder(CollectionNode::new())
+    HingeBuilder { node: ClassificationNode::new(), mandatory: Vec::new() }
   }
 
   pub fn bool_flag(
@@ -88,7 +91,7 @@ impl HingeBuilder {
     name: impl Into<FlagName>
   ) -> Self {
     let names: FlagName = name.into();
-    self.0 = self.0.put(id, NamedNode::new(names.collect(), AlwaysTrueNode));
+    self.node.put(id, NamedNode::new(names.collect(), AlwaysTrueNode));
     self
   }
   
@@ -99,9 +102,9 @@ impl HingeBuilder {
     required: bool
   ) -> Self {
     let names: FlagName = name.into();
-    self.0 = self.0.put(id, NamedNode::new(names.collect(), OneTokenNode));
+    self.node.put(&id, NamedNode::new(names.collect(), OneTokenNode));
     if required {
-      self.0 = self.0.require_last()
+      self.mandatory.push(id.as_ref().to_string())
     }
     self
   }
@@ -114,19 +117,19 @@ impl HingeBuilder {
     required: bool
   ) -> Self {
     let names: FlagName = name.into();
-    self.0 = self.0.put(id, NamedNode::new(names.collect(), ListNode::new(count)));
+    self.node.put(&id, NamedNode::new(names.collect(), ListNode::new(count)));
     if required {
-      self.0 = self.0.require_last();
+      self.mandatory.push(id.as_ref().to_string())
     }
     self
   }
 
   pub fn catch_tail(mut self, name: impl AsRef<str>) -> Self {
-    self.0 = self.0.put(name, NamedNode::new(vec!["--"], ListNode::new(None)));
+    self.node.put(name, NamedNode::new(vec!["--"], ListNode::new(None)));
     self
   }
 
   pub fn build(self) -> Hinge {
-    self.0.into()
+    MandatoryItemsNode::new(self.node, self.mandatory).into()
   }
 }
