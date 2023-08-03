@@ -30,6 +30,15 @@ impl HingeConsumer for OneTokenNode {
 }
 
 #[derive(Debug, Clone)]
+pub struct OptionalTokenNode;
+
+impl HingeConsumer for OptionalTokenNode {
+  fn consume(&self, iterator: &mut Box<dyn Iterator<Item = Token>>) -> Result<HingeOutput> {
+    Ok(iterator.next().map(|val| HingeOutput::Value(val)).unwrap_or(HingeOutput::Empty))
+  }
+}
+
+#[derive(Debug, Clone)]
 pub struct ListNode {
   count: Option<usize>
 }
@@ -179,16 +188,27 @@ impl HingeConsumer for CollectionNode {
 
 #[derive(Debug, Clone)]
 pub struct ClassificationNode {
-  entries: Vec<(String, Rc<Box<dyn HingeConsumer>>)>
+  entries: (
+    Vec<(String, Rc<Box<dyn HingeConsumer>>)>,
+    Vec<(String, Rc<Box<dyn HingeConsumer>>)>
+  )
 }
 
 impl ClassificationNode {
   pub fn new() -> Self {
-    ClassificationNode { entries: Vec::new() }
+    ClassificationNode { entries: (Vec::new(), Vec::new()) }
   }
 
-  pub fn put(&mut self, id: impl AsRef<str>, value: impl HingeConsumer + 'static) {
-    self.entries.push((id.as_ref().to_string(), Rc::new(Box::new(value))));
+  pub fn put(&mut self, id: impl AsRef<str>, value: impl HingeConsumer + 'static, prioritary: bool) {
+    if prioritary {
+      &mut self.entries.0
+    } else {
+      &mut self.entries.1
+    }.push((id.as_ref().to_string(), Rc::new(Box::new(value))));
+  }
+
+  pub fn all_entries(&self) -> impl Iterator<Item = &(String, Rc<Box<dyn HingeConsumer>>)> {
+    self.entries.0.iter().chain(self.entries.1.iter())
   }
 }
 
@@ -196,7 +216,7 @@ impl HingeConsumer for ClassificationNode {
   fn consume(&self, iterator: &mut Box<dyn Iterator<Item = Token>>) -> Result<HingeOutput> {
     let mut builder = HingeCollectionBuilder::new();
     loop {
-      let results: Result<Vec<_>> = self.entries.iter()
+      let results: Result<Vec<_>> = self.all_entries()
         .filter(|item| !builder.has_item(&item.0))
         .map(|item| item.1.consume(iterator).map(|x| (item, x)))
         .collect();
@@ -208,7 +228,7 @@ impl HingeConsumer for ClassificationNode {
         builder.add_item(&item.0, result);
       }
     }
-    for item in &self.entries {
+    for item in self.all_entries() {
       if !builder.has_item(&item.0) {
         builder.add_item(&item.0, HingeOutput::Empty);
       }
