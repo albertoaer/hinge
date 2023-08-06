@@ -36,6 +36,14 @@ impl HingeOutput {
     matches!(self, Self::Empty)
   }
 
+  pub fn is_value(&self, concrete: Option<impl AsRef<str>>) -> bool {
+    match (self, concrete) {
+      (Self::Value(val), Some(concrete)) => *val == concrete.as_ref().to_string(),
+      (Self::Value(_), None) => true,
+      _ => false
+    }
+  }
+
   pub fn get_list(&self) -> Result<&[HingeOutput]> {
     match self {
       Self::List(list) | Self::MapList(_, list) => Ok(list.as_slice()),
@@ -56,6 +64,39 @@ impl HingeOutput {
 
   pub fn get_item(&self, name: impl AsRef<str>) -> Result<&HingeOutput> {
     self.get_map().and_then(|map| map.get(name.as_ref()).ok_or(ITEM_DOES_NOT_EXISTS.to_string().into()))
+  }
+}
+
+impl TryInto<Vec<HingeOutput>> for HingeOutput {
+  type Error = HingeError;
+
+  fn try_into(self) -> std::result::Result<Vec<HingeOutput>, Self::Error> {
+    match self {
+      Self::List(list) | Self::MapList(_, list) => Ok(list),
+      _ => Err(OUTPUT_IS_NOT_A_MAP.to_string().into())
+    }
+  }
+}
+
+impl TryInto<collections::HashMap<String, HingeOutput>> for HingeOutput {
+  type Error = HingeError;
+
+  fn try_into(self) -> std::result::Result<collections::HashMap<String, HingeOutput>, Self::Error> {
+    match self {
+      Self::Map(map) | Self::MapList(map, _) => Ok(map),
+      _ => Err(OUTPUT_IS_NOT_A_MAP.to_string().into())
+    }
+  }
+}
+
+impl TryInto<String> for HingeOutput {
+  type Error = HingeError;
+
+  fn try_into(self) -> std::result::Result<String, Self::Error> {
+    match self {
+      Self::Value(atom) => Ok(atom),
+      _ => Err(OUTPUT_IS_NOT_A_VALUE.to_string().into())
+    }
   }
 }
 
