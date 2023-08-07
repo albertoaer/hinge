@@ -8,6 +8,12 @@ pub trait HingeConsumer: Debug {
   fn consume(&self, iterator: &mut Box<dyn Iterator<Item = Token>>) -> Result<HingeOutput>;
 }
 
+impl<T : HingeConsumer + ?Sized> HingeConsumer for Box<T> {
+  fn consume(&self, iterator: &mut Box<dyn Iterator<Item = Token>>) -> Result<HingeOutput> {
+    self.as_ref().consume(iterator)
+  }
+}
+
 #[derive(Debug, Clone)]
 pub struct AlwaysTrueNode;
 
@@ -259,5 +265,43 @@ impl HingeConsumer for MandatoryItemsNode {
       }
     }
     Ok(builder.collect())
+  }
+}
+
+#[derive(Debug, Clone)]
+pub struct OrNode(Vec<Rc<(String, Box<dyn HingeConsumer>)>>);
+
+impl OrNode {
+  pub fn new() -> Self {
+    OrNode(Vec::new())
+  }
+
+  pub fn put(&mut self, id: impl AsRef<str>, value: impl HingeConsumer + 'static) {
+    self.0.push(Rc::new((id.as_ref().to_string(), Box::new(value))));
+  }
+  
+  pub fn or(mut self, id: impl AsRef<str>, value: impl HingeConsumer + 'static) -> Self {
+    self.put(id, value);
+    OrNode(self.0)
+  }
+
+  pub fn len(&self) -> usize {
+    self.0.len()
+  }
+}
+
+impl HingeConsumer for OrNode {
+  fn consume(&self, iterator: &mut Box<dyn Iterator<Item = Token>>) -> Result<HingeOutput> {
+    let mut options = self.0.iter();
+    while let Some(output) = options.next().map(|x| (&x.0, x.1.consume(iterator))) {
+      match output.1 {
+        Ok(HingeOutput::Empty) => (),
+        Ok(value) => return Ok(HingeOutput::Map(
+          collections::HashMap::from_iter(iter::once((output.0.clone(), value)))
+        )),
+        Err(err) => return Err(err),
+      }
+    }
+    Ok(HingeOutput::Empty)
   }
 }
