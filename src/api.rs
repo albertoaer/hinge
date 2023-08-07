@@ -1,4 +1,4 @@
-use crate::{HingeConsumer, Token, Result, HingeOutput, NamedNode, AlwaysTrueNode, ListNode, OneTokenNode, ClassificationNode, MandatoryItemsNode, OptionalTokenNode};
+use crate::{HingeConsumer, Token, Result, HingeOutput, NamedNode, AlwaysTrueNode, ListNode, OneTokenNode, ClassificationNode, MandatoryItemsNode, OptionalTokenNode, OrNode};
 
 #[derive(Debug)]
 pub struct Hinge(Box<dyn HingeConsumer>);
@@ -18,6 +18,10 @@ impl Hinge {
       Some(token) => Err(format!("not every token could be processed, next is: {}", token).into()),
       None => Ok(result),
     }
+  }
+
+  pub fn extract(self) -> Box<dyn HingeConsumer> {
+    self.0
   }
 }
 
@@ -76,13 +80,14 @@ impl From<(char, String)> for FlagName {
 
 #[derive(Debug, Clone)]
 pub struct HingeBuilder {
+  subcommands: OrNode,
   node: ClassificationNode,
   mandatory: Vec<String>
 }
 
 impl HingeBuilder {
   pub fn new() -> Self {
-    HingeBuilder { node: ClassificationNode::new(), mandatory: Vec::new() }
+    HingeBuilder { subcommands: OrNode::new(), node: ClassificationNode::new(), mandatory: Vec::new() }
   }
 
   pub fn bool_flag(
@@ -137,7 +142,24 @@ impl HingeBuilder {
     self
   }
 
+  pub fn subcommand(mut self, id: impl AsRef<str>, name: impl AsRef<str>, hinge: impl Into<Hinge>) -> Self {
+    let hinge: Hinge = hinge.into();
+    self.subcommands.put(id.as_ref().to_string(), NamedNode::new(vec![name], hinge.extract()));
+    self
+  }
+
   pub fn build(self) -> Hinge {
-    MandatoryItemsNode::new(self.node, self.mandatory).into()
+    let core = MandatoryItemsNode::new(self.node, self.mandatory);
+    if self.subcommands.len() > 0 {
+      self.subcommands.or("default", core).into()
+    } else {
+      core.into()
+    }
+  }
+}
+
+impl Into<Hinge> for HingeBuilder {
+  fn into(self) -> Hinge {
+    self.build()
   }
 }
