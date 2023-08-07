@@ -1,16 +1,22 @@
 use std::{rc::Rc, fmt::Debug, iter, mem::swap, collections};
 
-use crate::{HingeOutput, Result, HingeCollectionBuilder};
+use crate::{HingeOutput, Result, HingeCollectionBuilder, HingeHelp};
 
 pub type Token = String;
 
 pub trait HingeConsumer: Debug {
   fn consume(&self, iterator: &mut Box<dyn Iterator<Item = Token>>) -> Result<HingeOutput>;
+
+  fn apply_help_info(&self, _: &mut HingeHelp) { }
 }
 
 impl<T : HingeConsumer + ?Sized> HingeConsumer for Box<T> {
   fn consume(&self, iterator: &mut Box<dyn Iterator<Item = Token>>) -> Result<HingeOutput> {
-    self.as_ref().consume(iterator)
+    (**self).consume(iterator)
+  }
+
+  fn apply_help_info(&self, help: &mut HingeHelp) {
+    (**self).apply_help_info(help)
   }
 }
 
@@ -101,6 +107,13 @@ impl HingeConsumer for NamedNode {
     }
     return self.wrapped.consume(iterator)
   }
+
+  fn apply_help_info(&self, help: &mut HingeHelp) {
+    for name in self.names.iter() {
+      help.add_name(name);
+    }
+    self.wrapped.apply_help_info(help);
+  }
 }
 
 #[derive(Debug, Clone)]
@@ -190,6 +203,12 @@ impl HingeConsumer for CollectionNode {
     }
     Ok(builder.collect())
   }
+
+  fn apply_help_info(&self, help: &mut HingeHelp) {
+    for item in self.items.iter() {
+      item.consumer.apply_help_info(help.get_new_child())
+    }
+  }
 }
 
 #[derive(Debug, Clone)]
@@ -241,6 +260,14 @@ impl HingeConsumer for ClassificationNode {
     }
     Ok(builder.collect())
   }
+
+  fn apply_help_info(&self, help: &mut HingeHelp) {
+    for item in self.all_entries() {
+      let child = help.get_new_child();
+      child.add_name(format!("<{}>", item.0));
+      item.1.apply_help_info(child);
+    }
+  }
 }
 
 #[derive(Debug, Clone)]
@@ -265,6 +292,10 @@ impl HingeConsumer for MandatoryItemsNode {
       }
     }
     Ok(builder.collect())
+  }
+
+  fn apply_help_info(&self, help: &mut HingeHelp) {
+    self.child.apply_help_info(help);
   }
 }
 
@@ -303,5 +334,11 @@ impl HingeConsumer for OrNode {
       }
     }
     Ok(HingeOutput::Empty)
+  }
+
+  fn apply_help_info(&self, help: &mut HingeHelp) {
+    for item in self.0.iter() {
+      item.1.apply_help_info(help.get_new_child())
+    }
   }
 }

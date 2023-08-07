@@ -1,4 +1,4 @@
-use crate::{HingeConsumer, Token, Result, HingeOutput, NamedNode, AlwaysTrueNode, ListNode, OneTokenNode, ClassificationNode, MandatoryItemsNode, OptionalTokenNode, OrNode};
+use crate::{HingeConsumer, Token, Result, HingeOutput, NamedNode, AlwaysTrueNode, ListNode, OneTokenNode, ClassificationNode, MandatoryItemsNode, OptionalTokenNode, OrNode, HingeHelp};
 
 #[derive(Debug)]
 pub struct Hinge(Box<dyn HingeConsumer>);
@@ -22,6 +22,12 @@ impl Hinge {
 
   pub fn extract(self) -> Box<dyn HingeConsumer> {
     self.0
+  }
+
+  pub fn help(&self) -> String {
+    let mut help = HingeHelp::new();
+    self.0.apply_help_info(&mut help);
+    help.generate()
   }
 }
 
