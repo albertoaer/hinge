@@ -1,4 +1,4 @@
-use crate::{HingeConsumer, Token, Result, HingeOutput, NamedNode, AlwaysTrueNode, ListNode, OneTokenNode, ClassificationNode, MandatoryItemsNode, OptionalTokenNode, OrNode, HingeHelp};
+use crate::{HingeConsumer, Token, Result, HingeOutput, NamedNode, AlwaysTrueNode, ListNode, OneTokenNode, ClassificationNode, MandatoryItemsNode, OptionalTokenNode, OrNode, HingeHelp, KeyWrapNode};
 
 #[derive(Debug)]
 pub struct Hinge(Box<dyn HingeConsumer>);
@@ -150,14 +150,14 @@ impl HingeBuilder {
 
   pub fn subcommand(mut self, id: impl AsRef<str>, name: impl AsRef<str>, hinge: impl Into<Hinge>) -> Self {
     let hinge: Hinge = hinge.into();
-    self.subcommands.put(id.as_ref().to_string(), NamedNode::new(vec![name], hinge.extract()));
+    self.subcommands.put(KeyWrapNode::new(id.as_ref().to_string(), NamedNode::new(vec![name], hinge.extract())));
     self
   }
 
   pub fn build(self) -> Hinge {
     let core = MandatoryItemsNode::new(self.node, self.mandatory);
     if self.subcommands.len() > 0 {
-      self.subcommands.or("default", core).into()
+      self.subcommands.or(core).into()
     } else {
       core.into()
     }
