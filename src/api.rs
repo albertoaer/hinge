@@ -20,6 +20,10 @@ impl Hinge {
     }
   }
 
+  pub fn apply_args(&self) -> Result<HingeOutput> {
+    self.apply_tokens(std::env::args().skip(1))
+  }
+
   pub fn extract(self) -> Box<dyn HingeConsumer> {
     self.0
   }
@@ -135,8 +139,8 @@ impl HingeBuilder {
     self
   }
 
-  pub fn catch_tail(mut self, name: impl AsRef<str>) -> Self {
-    self.node.put(name, NamedNode::new(vec!["--"], ListNode::new(None)), true);
+  pub fn catch_tail(mut self, id: impl AsRef<str>) -> Self {
+    self.node.put(id, NamedNode::new(vec!["--"], ListNode::new(None)), true);
     self
   }
 
