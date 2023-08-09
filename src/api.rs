@@ -1,4 +1,4 @@
-use crate::{HingeConsumer, Token, Result, HingeOutput, NamedNode, AlwaysTrueNode, ListNode, OneTokenNode, ClassificationNode, MandatoryItemsNode, OptionalTokenNode, OrNode, HingeHelp, KeyWrapNode};
+use crate::{HingeConsumer, Token, Result, HingeOutput, NamedNode, AlwaysTrueNode, ListNode, OneTokenNode, ClassificationNode, MandatoryItemsNode, OptionalTokenNode, OrNode, HingeHelp, KeyWrapNode, HelpNode};
 
 #[derive(Debug)]
 pub struct Hinge(Box<dyn HingeConsumer>);
@@ -101,51 +101,45 @@ impl HingeBuilder {
   }
 
   pub fn bool_flag(
-    mut self,
+    self,
     id: impl AsRef<str>,
     name: impl Into<FlagName>
   ) -> Self {
     let names: FlagName = name.into();
-    self.node.put(id, NamedNode::new(names.collect(), AlwaysTrueNode), true);
-    self
+    self.include(id, NamedNode::new(names.collect(), AlwaysTrueNode), true, false)
   }
   
   pub fn item_flag(
-    mut self,
+    self,
     id: impl AsRef<str>,
     name: impl Into<FlagName>,
     required: bool
   ) -> Self {
     let names: FlagName = name.into();
-    self.node.put(&id, NamedNode::new(names.collect(), OneTokenNode), true);
-    if required {
-      self.mandatory.push(id.as_ref().to_string())
-    }
-    self
+    self.include(id, NamedNode::new(names.collect(), OneTokenNode), true, required)
   }
 
   pub fn list_flag(
-    mut self,
+    self,
     id: impl AsRef<str>,
     name: impl Into<FlagName>,
     count: Option<usize>,
     required: bool
   ) -> Self {
     let names: FlagName = name.into();
-    self.node.put(&id, NamedNode::new(names.collect(), ListNode::new(count)), true);
-    if required {
-      self.mandatory.push(id.as_ref().to_string())
-    }
-    self
+    self.include(id, NamedNode::new(names.collect(), ListNode::new(count)), true, required)
   }
 
-  pub fn catch_tail(mut self, id: impl AsRef<str>) -> Self {
-    self.node.put(id, NamedNode::new(vec!["--"], ListNode::new(None)), true);
-    self
+  pub fn catch_tail(self, id: impl AsRef<str>) -> Self {
+    self.include(id, NamedNode::new(vec!["--"], ListNode::new(None)), true, false)
   }
 
-  pub fn arg(mut self, id: impl AsRef<str>, required: bool) -> Self {
-    self.node.put(&id, OptionalTokenNode, false);
+  pub fn arg(self, id: impl AsRef<str>, required: bool) -> Self {
+    self.include(id, OptionalTokenNode, false, required)
+  }
+
+  pub fn include(mut self, id: impl AsRef<str>, node: impl HingeConsumer + 'static, prioritary: bool, required: bool) -> Self {
+    self.node.put(&id, node, prioritary);
     if required {
       self.mandatory.push(id.as_ref().to_string())
     }
@@ -154,7 +148,9 @@ impl HingeBuilder {
 
   pub fn subcommand(mut self, id: impl AsRef<str>, name: impl AsRef<str>, hinge: impl Into<Hinge>) -> Self {
     let hinge: Hinge = hinge.into();
-    self.subcommands.put(KeyWrapNode::new(id.as_ref().to_string(), NamedNode::new(vec![name], hinge.extract())));
+    self.subcommands.put(HelpNode::new(
+      KeyWrapNode::new(id.as_ref().to_string(), NamedNode::new(vec![name], hinge.extract()))
+    ).tabulate());
     self
   }
 

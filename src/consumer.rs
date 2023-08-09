@@ -20,6 +20,67 @@ impl<T : HingeConsumer + ?Sized> HingeConsumer for Box<T> {
   }
 }
 
+pub trait HelpFn : Fn(&mut HingeHelp) + 'static { }
+
+impl<U: Fn(&mut HingeHelp) + 'static> HelpFn for U { }
+
+impl Debug for dyn HelpFn {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "HelpFn(&mut help)")
+  }
+}
+
+#[derive(Debug, Clone)]
+pub struct HelpNode {
+  child: Rc<Box<dyn HingeConsumer>>,
+  actions: Vec<Rc<Box<dyn HelpFn>>>
+}
+
+impl HelpNode {
+  pub fn new(child: impl HingeConsumer + 'static) -> Self {
+    HelpNode { child: Rc::new(Box::new(child)), actions: Vec::new() }
+  }
+
+  pub fn new_with(child: impl HingeConsumer + 'static, action: impl HelpFn + 'static) -> Self {
+    HelpNode { child: Rc::new(Box::new(child)), actions: vec![Rc::new(Box::new(action))] }
+  }
+
+  pub fn add(&mut self, action: impl HelpFn + 'static) {
+    self.actions.push(Rc::new(Box::new(action)))
+  }
+
+  pub fn and(mut self, action: impl HelpFn + 'static) -> Self {
+    self.add(action);
+    self
+  }
+
+  pub fn description(self, description: impl AsRef<str>) -> Self {
+    let msg: String = description.as_ref().to_string();
+    self.and(move |help: &mut HingeHelp| help.set_description(&msg))
+  }
+
+  pub fn tabulate(self) -> Self {
+    self.and(move |help: &mut HingeHelp| help.set_tabulate_childs(true))
+  }
+
+  pub fn not_tabulate(self) -> Self {
+    self.and(move |help: &mut HingeHelp| help.set_tabulate_childs(false))
+  }
+}
+
+impl HingeConsumer for HelpNode {
+  fn consume(&self, iterator: &mut Box<dyn Iterator<Item = Token>>) -> Result<HingeOutput> {
+    self.child.consume(iterator)
+  }
+
+  fn apply_help_info(&self, help: &mut HingeHelp) {
+    for action in self.actions.iter() {
+      action(help)
+    }
+    self.child.apply_help_info(help)
+  }
+}
+
 #[derive(Debug, Clone)]
 pub struct AlwaysTrueNode;
 
