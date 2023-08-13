@@ -56,7 +56,5 @@ Output: hello everybody
 
 ## Upcoming features
 
-- *Subcommand* plugging
 - *Map* node
 - More ways to define *lists*
-- *Node* plug directly into the `HingeBuilder`
