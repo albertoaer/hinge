@@ -72,7 +72,7 @@ pub struct HingeBuilder<T> {
 }
 
 impl<T> Into<Hinge> for HingeBuilder<T> {
-  fn into(mut self) -> Hinge {
+  fn into(self) -> Hinge {
     self.build()
   }
 }
@@ -162,11 +162,11 @@ impl<T> HingeBuilder<T> {
   }
 
   pub fn build(
-    &mut self
+    self
   ) -> Hinge {
-    let core = MandatoryItemsNode::new(self.node.clone(), self.mandatory.clone().into_iter().collect());
+    let core = MandatoryItemsNode::new(self.node, self.mandatory.into_iter().collect());
     if self.subcommands.len() > 0 {
-      self.subcommands.clone().or(core).into()
+      self.subcommands.or(core).into()
     } else {
       core.into()
     }
